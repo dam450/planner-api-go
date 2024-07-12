@@ -1,0 +1,62 @@
+name: planner
+
+services:
+  db:
+    image: postgres:latest
+    container_name: planner-db
+    restart: unless-stopped
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_USER: ${JOURNEY_DATABASE_USER}
+      POSTGRES_DB: ${JOURNEY_DATABASE_NAME}
+      POSTGRES_PASSWORD: ${JOURNEY_DATABASE_PASSWORD}
+    volumes:
+      - db:/var/lib/postgresql/data
+    networks:
+      - planner-net
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: planner-pgadmin
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - 8081:80
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@admin.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+    volumes:
+      - pgadmin:/var/lib/pgadmin
+    networks:
+      - planner-net
+
+  app:
+    build: .
+    container_name: planner-app
+    restart: unless-stopped
+    ports:
+      - 8080:8080
+    environment:
+      JOURNEY_DATABASE_NAME: ${JOURNEY_DATABASE_NAME}
+      JOURNEY_DATABASE_USER: ${JOURNEY_DATABASE_USER}
+      JOURNEY_DATABASE_PASSWORD: ${JOURNEY_DATABASE_PASSWORD}
+      JOURNEY_DATABASE_PORT: ${JOURNEY_DATABASE_PORT:-5432}
+      JOURNEY_DATABASE_HOST: ${JOURNEY_DATABASE_HOST_DOCKER:-db}
+    depends_on:
+      - db
+    networks:
+      - planner-net
+
+volumes:
+  db:
+    name: planner-db
+    driver: local
+  pgadmin:
+    name: planner-pgadmin
+    driver: local
+
+networks:
+  planner-net:
+    name: planner-net
