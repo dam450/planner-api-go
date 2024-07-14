@@ -16,19 +16,21 @@ import (
 )
 
 type store interface {
+	CreateNewTrip(ctx context.Context, pool *pgxpool.Pool, params spec.CreateNewTripRequest) (uuid.UUID, error)
 	GetParticipant(ctx context.Context, participantID uuid.UUID) (pgstore.Participant, error)
 	ConfirmParticipant(ctx context.Context, participantID uuid.UUID) error
 }
 
 type API struct {
-	store store
-	logger *zap.Logger
-	validator *validator.Validate
+	store 			store
+	logger 			*zap.Logger
+	validator 	*validator.Validate
+	pool 				*pgxpool.Pool
 }
 
 func NewAPI(pool *pgxpool.Pool, logger *zap.Logger) API {
 	validator := validator.New(validator.WithRequiredStructEnabled())
-	return API{pgstore.New(pool), logger, validator}
+	return API{pgstore.New(pool), logger, validator, pool}
 }
 
 // Confirms a participant on a trip.
@@ -70,7 +72,6 @@ func (api *API) PatchParticipantsParticipantIDConfirm(w http.ResponseWriter, r *
 // Create a new trip
 // (POST /trips)
 func (api *API) PostTrips(w http.ResponseWriter, r *http.Request) *spec.Response {
-	// TODO: Implement create new trip
 	var body spec.CreateNewTripRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		return spec.PostTripsJSON400Response(spec.BadRequestError{Message: "invalid JSON request body"})
@@ -78,10 +79,14 @@ func (api *API) PostTrips(w http.ResponseWriter, r *http.Request) *spec.Response
 
 	if err := api.validator.Struct(body); err != nil {
 		return spec.PostTripsJSON400Response(spec.BadRequestError{Message: "invalid input: " + err.Error()})
-
 	}
 
-	return nil
+	tripID, err := api.store.CreateNewTrip(r.Context(), api.pool, body)
+	if err != nil {
+		return spec.PostTripsJSON400Response(spec.BadRequestError{Message: "failed to create trip, try again"})
+	}
+
+	return spec.PostTripsJSON201Response(spec.CreateNewTripResponse{TripID: tripID.String()})
 }
 
 // Get a trip details.
